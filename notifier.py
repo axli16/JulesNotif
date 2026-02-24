@@ -77,15 +77,15 @@ class Notifier:
         """
         config = STATUS_CONFIG.get(status, STATUS_CONFIG["unknown"])
 
-        # Keep title ASCII-safe (HTTP headers use latin-1 encoding)
-        # Emoji will be rendered by ntfy's tag system instead
-        full_title = f"Jules: {title}"
+        # HTTP headers are latin-1 encoded, so strip any characters
+        # that can't be represented. Emoji and unicode go in the body instead.
+        safe_title = self._make_header_safe(f"Jules: {title}")
 
         # Prepend emoji to the message body where UTF-8 is supported
         full_message = f"{config['emoji']} {message}"
 
         headers = {
-            "Title": full_title,
+            "Title": safe_title,
             "Priority": config["priority"],
             "Tags": ",".join(config["tags"]),
         }
@@ -104,7 +104,7 @@ class Notifier:
             )
 
             if response.status_code == 200:
-                print(f"[Notify] Notification sent: {full_title}")
+                print(f"[Notify] Notification sent: {safe_title}")
                 return True
             else:
                 print(f"[Notify] Failed to send notification: HTTP {response.status_code}")
@@ -121,10 +121,15 @@ class Notifier:
             print(f"[Notify] Unexpected error sending notification: {e}")
             return False
 
+    @staticmethod
+    def _make_header_safe(text: str) -> str:
+        """Strip characters that can't be encoded in latin-1 (HTTP header encoding)."""
+        return text.encode("latin-1", errors="ignore").decode("latin-1")
+
     def send_test(self) -> bool:
         """Send a test notification to verify the setup works."""
         return self.send_notification(
             title="Connection Test",
-            message="Jules Notifier is connected and working! 🎉\nYou will receive notifications here when Jules updates arrive.",
+            message="Jules Notifier is connected and working!\nYou will receive notifications here when Jules updates arrive.",
             status="completed",
         )
